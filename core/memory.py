@@ -118,6 +118,19 @@ class VectorMemory:
                 "curfew": format_hour(curfew_hour),
                 "curfew_hour": curfew_hour,
             },
+            "child_profiles": {
+                "toddler": {
+                    "age": 3,
+                    "nicknames": ["baby", "sweetie"],
+                    "favorite_dress": "red_butterfly",
+                    "favorite_color": "red",
+                },
+                "preschool": {
+                    "age": 4,
+                    "nicknames": ["love", "buddy"],
+                    "favorite_activity": "lego",
+                },
+            },
         }
 
     def _seed_personality(self):

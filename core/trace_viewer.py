@@ -20,6 +20,7 @@ AGENT_COLORS = {
     "Reflection": "#00bcd4",
     "Watchdog": "#f44336",
     "Orchestrator": "#607d8b",
+    "AmbientSensors": "#8bc34a",
 }
 
 

@@ -47,6 +47,8 @@ ESCALATION_GROUNDING = {
         "keywords": (
             "panic", "anxious", "freaking out", "can't calm down",
             "worried sick", "stressed", "overwhelmed", "crying",
+            "can't stop thinking", "school was rough", "talking about me",
+            "embarrassed", "left out",
         ),
         "default_urgency": "medium",
         "page": True,
@@ -60,6 +62,15 @@ ESCALATION_GROUNDING = {
         "default_urgency": "high",
         "page": True,
         "reason": "Conversation signals time-sensitive urgency.",
+    },
+    "missing_parent": {
+        "keywords": (
+            "coming back", "coming home", "when are you", "when will you",
+            "get home", "back home", "daddy", "mommy",
+        ),
+        "default_urgency": "medium",
+        "page": True,
+        "reason": "Child asking when parent will return home.",
     },
 }
 
@@ -104,6 +115,10 @@ class EscalationAgent(Agent):
         alert: Dict[str, Any] = None,
         mood: str = None,
         proactive: bool = False,
+        observed_distress: Dict[str, Any] = None,
+        child_observation: Dict[str, Any] = None,
+        daddy_eta: Dict[str, Any] = None,
+        daddy_eta_flow: bool = False,
     ) -> Dict[str, Any]:
         safety = safety or {}
         alert = alert or {}
@@ -128,7 +143,14 @@ class EscalationAgent(Agent):
 
         if safety.get("request_type") == "distress":
             should_page = True
-            reasons.append("Child distress signal — parent should be alerted.")
+            if safety.get("distress_source") == "observed_and_disclosure":
+                reasons.append(
+                    "Elevated distress detected (voice + room); teen disclosed social upset."
+                )
+            elif safety.get("observed_distress"):
+                reasons.append("Elevated distress observed via ambient sensors.")
+            else:
+                reasons.append("Child distress signal — parent should be alerted.")
             urgencies.append("high")
 
         if safety.get("approved") is False and safety.get("request_type") != "distress":
@@ -145,6 +167,17 @@ class EscalationAgent(Agent):
 
         if proactive and alert:
             should_page = True
+
+        if daddy_eta_flow and child_observation:
+            should_page = True
+            home = (daddy_eta or {}).get("estimated_home_arrival", "5:00 PM")
+            tone = child_observation.get("signals", {}).get("voice_tone", "warm")
+            reasons.append(
+                f"Your kid misses you — wants to play Lego with you. "
+                f"Voice tone: {tone}. ETA shared: home by {home}."
+            )
+            urgencies.append("medium")
+            matched.add("missing_parent")
 
         if mood in ("eager",) and "going_out" in matched:
             urgencies.append("medium")
@@ -173,6 +206,10 @@ class EscalationAgent(Agent):
         alert = ctx.get("alert")
         mood = ctx.get("mood")
         proactive = ctx.get("proactive", False)
+        observed_distress = ctx.get("observed_distress")
+        child_observation = ctx.get("child_observation")
+        daddy_eta = ctx.get("daddy_eta")
+        daddy_eta_flow = ctx.get("daddy_eta_flow", False)
 
         escalation = self.evaluate(
             user_input=user_input,
@@ -180,6 +217,10 @@ class EscalationAgent(Agent):
             alert=alert,
             mood=mood,
             proactive=proactive,
+            observed_distress=observed_distress,
+            child_observation=child_observation,
+            daddy_eta=daddy_eta,
+            daddy_eta_flow=daddy_eta_flow,
         )
 
         thought = (

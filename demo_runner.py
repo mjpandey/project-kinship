@@ -2,7 +2,13 @@
 
 from typing import Any, Callable, Dict, List
 
-from core.orchestrator import Orchestrator
+from core.orchestrator import (
+    Orchestrator,
+    DEFAULT_DADDY_ETA_ASK,
+    DEFAULT_TODDLER_DRESS_ASK,
+    DEFAULT_TODDLER_DRESS_CHOICE,
+    DEFAULT_TEEN_DISCLOSURE,
+)
 
 
 DemoStep = Dict[str, Any]
@@ -42,7 +48,7 @@ def run_escalation_demo(
     orchestrator: Orchestrator,
     on_step: Callable[[int, str, Dict[str, Any]], None] = None,
 ) -> List[DemoStep]:
-    """Show distress handling + behind-the-scenes paging."""
+    """Observed distress: sensors -> check-in -> teen opens up -> silent paging."""
     steps: List[DemoStep] = []
 
     def emit(step_num: int, title: str, result: Dict[str, Any]):
@@ -52,9 +58,58 @@ def run_escalation_demo(
             on_step(step_num, title, result)
 
     orchestrator.setup_memory_agents()
-    emit(1, "Child in distress", orchestrator.run_hero_flow(
-        "Mom I'm freaking out and panicking, I need help right now"
-    ))
+    emit(
+        1,
+        "Observed distress (voice + room) → check-in → teen disclosure → page parent",
+        orchestrator.run_observed_distress_flow(DEFAULT_TEEN_DISCLOSURE),
+    )
+    return steps
+
+
+def run_toddler_presence_demo(
+    orchestrator: Orchestrator,
+    on_step: Callable[[int, str, Dict[str, Any]], None] = None,
+) -> List[DemoStep]:
+    """Toddler digital presence — favorite dress with learned device insights."""
+    steps: List[DemoStep] = []
+
+    def emit(step_num: int, title: str, result: Dict[str, Any]):
+        entry = {"step": step_num, "title": title, "result": result}
+        steps.append(entry)
+        if on_step:
+            on_step(step_num, title, result)
+
+    orchestrator.setup_memory_agents()
+    emit(
+        1,
+        "Toddler asks for favorite dress — Kinship answers like Mommy",
+        orchestrator.run_toddler_presence_flow(
+            DEFAULT_TODDLER_DRESS_ASK,
+            DEFAULT_TODDLER_DRESS_CHOICE,
+        ),
+    )
+    return steps
+
+
+def run_daddy_eta_demo(
+    orchestrator: Orchestrator,
+    on_step: Callable[[int, str, Dict[str, Any]], None] = None,
+) -> List[DemoStep]:
+    """Preschooler asks when Daddy is home — commute ETA + silent page to real Dad."""
+    steps: List[DemoStep] = []
+
+    def emit(step_num: int, title: str, result: Dict[str, Any]):
+        entry = {"step": step_num, "title": title, "result": result}
+        steps.append(entry)
+        if on_step:
+            on_step(step_num, title, result)
+
+    orchestrator.setup_memory_agents("daddy")
+    emit(
+        1,
+        "Preschooler asks when Daddy comes home — ETA + Lego promise",
+        orchestrator.run_daddy_eta_flow(DEFAULT_DADDY_ETA_ASK),
+    )
     return steps
 
 
@@ -82,19 +137,23 @@ def run_full_video_demo(
     on_step: Callable[[int, str, Dict[str, Any]], None] = None,
 ) -> List[DemoStep]:
     """
-    Recommended 5-minute recording sequence:
+    Recommended 6-scene capstone video sequence:
     1. Hero going-out
-    2. Learning loop
-    3. Distress + paging
-    4. Smoke alert
+    2. Learn & Retry (curfew 8→7 PM)
+    3. Toddler — favorite dress
+    4. Daddy ETA — Lego
+    5. Watchdog — smoke alert
+    6. Observed distress — school worry
     """
     all_steps: List[DemoStep] = []
     offset = 0
 
     for batch in (
         run_learning_demo(orchestrator),
-        run_escalation_demo(orchestrator),
+        run_toddler_presence_demo(orchestrator),
+        run_daddy_eta_demo(orchestrator),
         run_watchdog_demo(orchestrator, "smoke"),
+        run_escalation_demo(orchestrator),
     ):
         for step in batch:
             offset += 1

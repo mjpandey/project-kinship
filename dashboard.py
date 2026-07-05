@@ -15,7 +15,14 @@ from core.trace_viewer import (
     read_trace_log,
     trace_to_markdown,
 )
-from demo_runner import run_escalation_demo, run_full_video_demo, run_learning_demo, run_watchdog_demo
+from demo_runner import (
+    run_daddy_eta_demo,
+    run_escalation_demo,
+    run_full_video_demo,
+    run_learning_demo,
+    run_toddler_presence_demo,
+    run_watchdog_demo,
+)
 
 st.set_page_config(
     page_title="Project Kinship",
@@ -70,9 +77,20 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 HERO_PRESETS = {
     "Going out with friends": "Mom, can I go out with my friends tonight?",
     "Stay out late (denied)": "Can I hang out with friends and be back by 11 PM?",
-    "Child in distress": "Mom I'm freaking out and panicking, I need help right now",
+    "Observed worry — school": (
+        "School was rough. Some kids were talking about me and I can't stop thinking about it."
+    ),
+    "Toddler — favorite dress": (
+        "Hey mommy, where is my favorite dress? I want to wear it."
+    ),
+    "Daddy — coming home": "Hi Daddy, when are you coming back home?",
     "Custom": "",
 }
+
+OBSERVED_WORRY_PRESET = "Observed worry — school"
+TODDLER_DRESS_PRESET = "Toddler — favorite dress"
+DADDY_ETA_PRESET = "Daddy — coming home"
+DEFAULT_TODDLER_DRESS_CHOICE = "The red butterfly one!"
 
 IOT_SCENARIOS = {
     "Front door opened": "door",
@@ -166,20 +184,24 @@ def render_trace_steps(trace: list):
 
 
 def sidebar():
-    st.sidebar.markdown("## Project Kinship")
-    st.sidebar.caption("Hey Mommy · Hello Dad — Multi-Agent Parental AI")
+    st.sidebar.markdown("## Hey Mommy · Hi Dad")
+    st.sidebar.caption("Project Kinship — Multi-Agent Parental Presence AI")
 
     persona = st.sidebar.radio("Persona", ["mommy", "daddy"], format_func=str.title)
     st.session_state.persona = persona
 
     st.sidebar.divider()
     st.sidebar.markdown("### Quick demos")
-    if st.sidebar.button("▶ Full video demo (all arcs)", use_container_width=True):
+    if st.sidebar.button("▶ Full video demo (6 scenes)", use_container_width=True):
         st.session_state.run_full_demo = True
     if st.sidebar.button("🧠 Learning loop", use_container_width=True):
         st.session_state.run_learning_demo = True
-    if st.sidebar.button("😰 Distress + paging", use_container_width=True):
+    if st.sidebar.button("😰 Observed distress + paging", use_container_width=True):
         st.session_state.run_distress_demo = True
+    if st.sidebar.button("👶 Toddler — favorite dress", use_container_width=True):
+        st.session_state.run_toddler_demo = True
+    if st.sidebar.button("🧱 Daddy — coming home (Lego)", use_container_width=True):
+        st.session_state.run_daddy_eta_demo = True
 
     st.sidebar.divider()
     st.sidebar.markdown("### Memory")
@@ -201,6 +223,49 @@ def sidebar():
     return persona
 
 
+def apply_observed_distress_messages(result: dict):
+    """Rebuild chat from observed-distress flow (sensors → check-in → teen → comfort)."""
+    st.session_state.messages = []
+    obs = result.get("observation", {})
+    st.session_state.messages.append({
+        "role": "system",
+        "content": f"Observed: {obs.get('signal_summary', 'elevated distress')}",
+    })
+    st.session_state.messages.append({"role": "persona", "content": result["check_in"]})
+    st.session_state.messages.append({"role": "child", "content": result["teen_response"]})
+    st.session_state.messages.append({"role": "persona", "content": result["response"]})
+
+
+def apply_toddler_presence_messages(result: dict):
+    """Rebuild chat from toddler dress flow (insights → ask → choice → reply)."""
+    st.session_state.messages = []
+    insights = result.get("daily_insights", {})
+    st.session_state.messages.append({
+        "role": "system",
+        "content": f"Learned: {insights.get('signal_summary', 'device insights')}",
+    })
+    st.session_state.messages.append({"role": "child", "content": result["child_ask"]})
+    st.session_state.messages.append({"role": "persona", "content": result["greeting"]})
+    st.session_state.messages.append({"role": "child", "content": result["child_choice"]})
+    st.session_state.messages.append({"role": "persona", "content": result["response"]})
+
+
+def apply_daddy_eta_messages(result: dict):
+    """Rebuild chat from Daddy ETA flow (observe → data → ask → reply + paging)."""
+    st.session_state.messages = []
+    obs = result.get("child_observation", {})
+    st.session_state.messages.append({
+        "role": "system",
+        "content": f"Observed: {obs.get('signal_summary', 'missing parent')}",
+    })
+    data_points = result.get("data_points", [])
+    if data_points:
+        summary = "; ".join(f"{dp['source']}: {dp['insight']}" for dp in data_points)
+        st.session_state.messages.append({"role": "system", "content": f"Data: {summary}"})
+    st.session_state.messages.append({"role": "child", "content": result["child_ask"]})
+    st.session_state.messages.append({"role": "persona", "content": result["response"]})
+
+
 def tab_hero(persona: str):
     st.markdown('<p class="hero-title">Hero Scenario</p>', unsafe_allow_html=True)
     st.markdown(
@@ -210,29 +275,96 @@ def tab_hero(persona: str):
 
     preset = st.selectbox("Preset prompts", list(HERO_PRESETS.keys()))
     default_text = HERO_PRESETS[preset]
+    is_observed = preset == OBSERVED_WORRY_PRESET
+    is_toddler = preset == TODDLER_DRESS_PRESET
+    is_daddy_eta = preset == DADDY_ETA_PRESET
+    if is_observed:
+        input_label = "Teen reply (after Kinship check-in)…"
+    elif is_toddler:
+        input_label = "Toddler asks…"
+    elif is_daddy_eta:
+        input_label = "Preschooler asks…"
+    else:
+        input_label = "Child says…"
     user_input = st.text_input(
-        "Child says…",
+        input_label,
         value=default_text,
-        placeholder="Mom, can I go out with my friends tonight?",
+        placeholder=(
+            "School was rough. Some kids were talking about me…"
+            if is_observed
+            else (
+                "Hey mommy, where is my favorite dress?"
+                if is_toddler
+                else (
+                    "Hi Daddy, when are you coming back home?"
+                    if is_daddy_eta
+                    else "Mom, can I go out with my friends tonight?"
+                )
+            )
+        ),
     )
+    toddler_choice = DEFAULT_TODDLER_DRESS_CHOICE
+    if is_toddler:
+        toddler_choice = st.text_input(
+            "Toddler picks (simulated reply)",
+            value=DEFAULT_TODDLER_DRESS_CHOICE,
+        )
+        st.caption(
+            "Digital Mommy presence: cam · mic · memory → dress choices → "
+            "second drawer for dance class."
+        )
+    if is_daddy_eta:
+        st.caption(
+            "Runs Daddy ETA flow: voice + room cam → calendar/commute/traffic → "
+            "warm ETA reply → silent page to real Dad."
+        )
+    if is_observed:
+        st.caption(
+            "Runs observed-distress flow: voice + room cam → Kinship asks what's wrong → "
+            "teen opens up → silent parent paging."
+        )
 
     col1, col2 = st.columns([1, 4])
     with col1:
         send = st.button("Send", type="primary", use_container_width=True)
 
     if send and user_input.strip():
-        orch = get_orchestrator(persona)
-        st.session_state.messages.append({"role": "child", "content": user_input})
+        flow_persona = "daddy" if is_daddy_eta else persona
+        if is_daddy_eta:
+            st.session_state.persona = "daddy"
+        orch = get_orchestrator(flow_persona)
 
         with st.spinner("Agents collaborating…"):
-            result = orch.run_hero_flow(user_input.strip())
+            if is_observed:
+                result = orch.run_observed_distress_flow(user_input.strip())
+                apply_observed_distress_messages(result)
+            elif is_toddler:
+                result = orch.run_toddler_presence_flow(
+                    user_input.strip(),
+                    toddler_choice.strip() or DEFAULT_TODDLER_DRESS_CHOICE,
+                )
+                apply_toddler_presence_messages(result)
+            elif is_daddy_eta:
+                result = orch.run_daddy_eta_flow(user_input.strip())
+                apply_daddy_eta_messages(result)
+            else:
+                st.session_state.messages.append({"role": "child", "content": user_input})
+                result = orch.run_hero_flow(user_input.strip())
+                st.session_state.messages.append({
+                    "role": "persona",
+                    "content": result["response"],
+                })
 
         st.session_state.last_result = result
         st.session_state.last_trace = result.get("trace", [])
-        st.session_state.messages.append({"role": "persona", "content": result["response"]})
 
     for msg in st.session_state.messages:
-        if msg["role"] == "child":
+        if msg["role"] == "system":
+            st.markdown(
+                f'<div class="system-chip">📡 {msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
+        elif msg["role"] == "child":
             with st.chat_message("user", avatar="🧒"):
                 st.write(msg["content"])
         else:
@@ -344,7 +476,7 @@ def tab_trace():
 def tab_demo_playback():
     st.markdown('<p class="hero-title">Demo Playback</p>', unsafe_allow_html=True)
     st.markdown(
-        '<p class="hero-sub">Step through recorded demo sequences — ideal for your 5-minute video</p>',
+        '<p class="hero-sub">Step through recorded demo sequences</p>',
         unsafe_allow_html=True,
     )
 
@@ -386,10 +518,34 @@ def run_demo_flags(persona: str):
 
     if st.session_state.get("run_distress_demo"):
         st.session_state.run_distress_demo = False
-        with st.spinner("Running distress demo…"):
+        with st.spinner("Running observed distress demo…"):
             steps = run_escalation_demo(orch, on_step=capture)
+        if steps:
+            apply_observed_distress_messages(steps[0]["result"])
         st.session_state.demo_steps = steps
-        st.toast("Distress demo complete")
+        st.toast("Observed distress demo complete")
+
+    if st.session_state.get("run_toddler_demo"):
+        st.session_state.run_toddler_demo = False
+        with st.spinner("Running toddler presence demo…"):
+            steps = run_toddler_presence_demo(orch, on_step=capture)
+        if steps:
+            apply_toddler_presence_messages(steps[0]["result"])
+        st.session_state.demo_steps = steps
+        st.toast("Toddler presence demo complete")
+
+    if st.session_state.get("run_daddy_eta_demo"):
+        st.session_state.run_daddy_eta_demo = False
+        st.session_state.persona = "daddy"
+        daddy_orch = get_orchestrator("daddy")
+        with st.spinner("Running Daddy ETA demo…"):
+            steps = run_daddy_eta_demo(daddy_orch, on_step=capture)
+        if steps:
+            apply_daddy_eta_messages(steps[0]["result"])
+            st.session_state.last_result = steps[0]["result"]
+            st.session_state.last_trace = steps[0]["result"].get("trace", [])
+        st.session_state.demo_steps = steps
+        st.toast("Daddy ETA demo complete")
 
 
 def main():

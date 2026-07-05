@@ -44,7 +44,7 @@ An **Orchestrator** coordinates these specialists via a structured **Agent-to-Ag
 ### Innovation & value
 
 1. **Digital presence, not impersonation** — Speaks like *your* parent (Mommy/Daddy profiles, nicknames, learned rules).
-2. **Negotiation, not commands** — Hero demo: child asks to go out → system checks pasta dinner at 6:30 PM, applies 8 PM curfew, negotiates naturally.
+2. **Negotiation, not commands** — Hero demo: child asks to go out → system checks pasta dinner at 8:30 PM, applies 8 PM curfew, negotiates naturally.
 3. **Proactive safety** — IoT Watchdog detects smoke or front-door events and issues a watchful alert *without waiting for the child to speak*.
 4. **Self-learning** — Parent says *"Time limit is 7 PM"* → Reflection Agent updates ChromaDB → next request uses 7 PM.
 5. **Responsible escalation** — Child never hears *"I'm notifying the real mommy."* Paging is a behind-the-scenes system action.
@@ -77,10 +77,10 @@ An **Orchestrator** coordinates these specialists via a structured **Agent-to-Ag
 |------|---------|--------|--------|
 | **0:00–0:30** | Hook & problem | Dashboard home, project title | *"When a parent is at work or traveling, children still need someone who sounds like Mom or Dad — not a generic assistant. Project Kinship is a multi-agent system that provides digital parental presence: warm conversation, real household context, safety rules, and knowing when to call the real parent."* |
 | **0:30–1:00** | Why agents? | Architecture diagram ([ARCHITECTURE.md](./ARCHITECTURE.md)) | *"Parenting isn't one job. We split it into seven specialized agents — Persona for voice, Logistics for data, Safety for rules, Escalation for human paging, Watchdog for IoT alerts, and Reflection for learning. An Orchestrator routes messages between them using an Agent-to-Agent protocol, with every thought and action logged."* |
-| **1:00–2:00** | Hero demo | Hero tab → preset *"Going out with friends"* → Send | *"Watch the hero scenario. A child asks: 'Mom, can I go out with my friends tonight?' Persona acknowledges warmly. Logistics checks our mock MCP servers — pasta dinner at 6:30. Safety applies the 8 PM curfew. Escalation silently pages the parent — the child never hears that. Persona delivers one natural reply: yes, but home by eight, eat dinner first."* |
+| **1:00–2:00** | Hero demo | Hero tab → preset *"Going out with friends"* → Send | *"Watch the hero scenario. A child asks: 'Mom, can I go out with my friends tonight?' Persona acknowledges warmly. Logistics checks our mock MCP servers — pasta dinner at 8:30. Safety applies the 8 PM curfew. Escalation silently pages the parent — the child never hears that. Persona delivers one natural reply: yes, but home by eight, plan your evening so you can have dinner with us at 8:30."* |
 | **2:00–2:30** | Trace / quality | Trace Log tab — expand agent steps | *"Every decision is auditable. Here is the chain-of-thought trace — Persona, Logistics, Safety, Escalation — thought, action, result. This is our agent quality evidence layer."* |
 | **2:30–3:30** | Learning loop | Memory tab → correction *"Time limit is 7 PM"* → Hero again | *"Kinship learns. The parent corrects: 'Actually, the time limit is 7 PM.' The Reflection Agent parses that, updates ChromaDB vector memory, and Safety refreshes its rules. Ask again — now the reply says 7 PM. The agent evolved from parent feedback."* |
-| **3:30–4:00** | Security & distress | Hero preset *"Child in distress"* → paging chip | *"Security is layered. Distress messages get calming responses — not going-out approval. Escalation evaluates danger, anxiety, and urgency categories and pages the parent behind the scenes."* |
+| **3:30–4:00** | Security & distress | Hero preset *Observed worry — school* → paging chip | *"Watchdog and ambient sensors notice worry before the child asks for help. Persona checks in like a real parent, the teen opens up, and Escalation pages behind the scenes — never spoken aloud."* |
 | **4:00–4:30** | Proactive Watchdog | Watchdog tab → Simulate smoke | *"Agents don't only react. The Watchdog listens to an IoT stream. Smoke detected — no child input needed. Persona switches to a watchful alert tone. Critical events trigger parent paging automatically."* |
 | **4:30–5:00** | Build & close | Sidebar Full demo button + tech stack slide | *"Built in Python with Pydantic A2A messages, mock MCP tool servers, ChromaDB memory, and a Streamlit demo dashboard. Modular, traceable, and ready to wire to real calendars, maps, and push notifications. Project Kinship — digital presence that parents can trust. Links in the description."* |
 
@@ -217,13 +217,14 @@ Project Kinship demonstrates that **multi-agent architecture is not over-enginee
 
 | Step | Time | What happens | What it proves |
 |------|------|--------------|----------------|
-| **1. Hero** | ~15s | *"Mom, can I go out tonight?"* → Persona → Logistics (pasta 6:30 PM) → Safety (8 PM curfew) → Escalation (silent page) → Persona reply | Multi-agent negotiation with MCP data |
-| **2. Learn** | ~10s | Parent: *"Time limit is 7 PM"* → Reflection updates ChromaDB → curfew **8→7 PM** | Self-learning via Reflection + ChromaDB |
-| **3. Retry** | ~10s | Same question → reply now says **7 PM** | Learned rules applied on next interaction |
-| **4. Watchdog** | ~5s | Simulate smoke → Watchdog → Persona alert tone → parent paged (no child input) | Proactive Watchdog without user input |
-| **5. Distress** | ~8s | Panic preset → calming reply + silent escalation chip | Security + calming persona + escalation |
-| **6. Trace** | ~5s | Trace Log tab: Thought → Action → Result per agent | Agent quality / auditable decisions |
-| **All** | ~60s | Run steps 1–6 in sequence via dashboard or CLI | End-to-end capstone narrative in one click |
+| **1. Hero** | ~15s | *"Mom, can I go out tonight?"* → Persona → Logistics (pasta 8:30 PM) → Safety (8 PM curfew) → Escalation (silent page) → Persona reply | Multi-agent negotiation with MCP data |
+| **2. Learn & Retry** | ~25s | Parent: *"Time limit is 7 PM"* → Reflection updates ChromaDB → same question → reply now says **7 PM** | Self-learning via Reflection + ChromaDB |
+| **3. Toddler presence** | ~15s | *"Where is my favorite dress?"* → learned device insights → dress choices → drawer location | Digital Mommy presence + memory |
+| **4. Daddy ETA** | ~15s | *"When are you coming home?"* + Lego → calendar/commute/traffic → warm ETA → silent page to Dad | Daddy persona + Logistics + Escalation |
+| **5. Watchdog** | ~10s | Simulate smoke → Watchdog → Persona alert tone → parent paged (no child input) | Proactive Watchdog without user input |
+| **6. Distress** | ~15s | Sensors observe worry → Kinship check-in → teen shares school upset → comfort + silent page | Observed distress + escalation |
+| **Optional** | ~5s | Trace Log tab: Thought → Action → Result per agent | Agent quality / auditable decisions |
+| **All** | ~90s | Run steps 1–6 via dashboard **▶ Full video demo** or `python main.py --full-demo` | End-to-end capstone narrative in one click |
 
 **Phase 1 only:** `python main.py --phase1` — *"What's for dinner?"* → Household MCP; traffic → Logistics MCP.
 

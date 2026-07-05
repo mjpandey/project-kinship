@@ -246,6 +246,41 @@ def main():
             print()
         return
 
+    if "--toddler-demo" in sys.argv:
+        from demo_runner import run_toddler_presence_demo
+        orchestrator = Orchestrator(persona_type=persona)
+        orchestrator.setup_memory_agents(persona)
+        print("Toddler presence demo — favorite dress\n")
+        for step in run_toddler_presence_demo(orchestrator):
+            r = step["result"]
+            print(f"Learned: {r['daily_insights']['signal_summary']}\n")
+            print(f"Child: {r['child_ask']}\n")
+            print(f"Kinship: {r['greeting']}\n")
+            print(f"Child: {r['child_choice']}\n")
+            print(f"Kinship: {r['response']}\n")
+            if "--trace" in sys.argv:
+                _print_trace(r["trace"])
+        return
+
+    if "--daddy-eta-demo" in sys.argv:
+        from demo_runner import run_daddy_eta_demo
+        orchestrator = Orchestrator(persona_type="daddy")
+        orchestrator.setup_memory_agents("daddy")
+        print("Daddy ETA demo — Lego + coming home\n")
+        for step in run_daddy_eta_demo(orchestrator):
+            r = step["result"]
+            print(f"Observed: {r['child_observation']['signal_summary']}\n")
+            for dp in r.get("data_points", []):
+                print(f"  {dp['source']}: {dp['insight']}")
+            print(f"\nChild: {r['child_ask']}\n")
+            print(f"Kinship (Daddy): {r['response']}\n")
+            esc = r.get("escalation", {})
+            if esc.get("should_page_parent"):
+                print(f"Behind the scenes: {esc.get('page_message')}\n")
+            if "--trace" in sys.argv:
+                _print_trace(r["trace"])
+        return
+
     if "--dashboard" in sys.argv or "--demo" in sys.argv:
         import subprocess
         subprocess.run([sys.executable, "-m", "streamlit", "run", "dashboard.py"])

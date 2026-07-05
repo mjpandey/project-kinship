@@ -14,6 +14,19 @@ from mcp_servers.household import HouseholdMCP
 from mcp_servers.logistics import LogisticsMCP
 from mcp_servers.iot_stream import IoTStreamMCP
 from mcp_servers.feedback import ParentalFeedbackMCP
+from mcp_servers.ambient_sensors import AmbientSensorsMCP
+
+DEFAULT_TEEN_DISCLOSURE = (
+    "School was rough. Some kids were talking about me and I can't stop thinking about it."
+)
+
+DEFAULT_TODDLER_DRESS_ASK = (
+    "Hey mommy, where is my favorite dress? I want to wear it."
+)
+
+DEFAULT_TODDLER_DRESS_CHOICE = "The red butterfly one!"
+
+DEFAULT_DADDY_ETA_ASK = "Hi Daddy, when are you coming back home?"
 
 HOUSEHOLD_KEYWORDS = {
     "meal": "current_meal",
@@ -59,6 +72,7 @@ class Orchestrator:
         self.household = HouseholdMCP()
         self.logistics_mcp = LogisticsMCP()
         self.iot_stream = IoTStreamMCP()
+        self.ambient = AmbientSensorsMCP()
         self.persona_type = persona_type
         self._last_proactive_response: Optional[Dict[str, Any]] = None
         self.memory = VectorMemory()
@@ -424,6 +438,409 @@ class Orchestrator:
             "curfew": self.memory.get_personality().get("rules", {}).get("curfew"),
             "paged_parent": escalation.get("should_page_parent", False),
             "escalation": escalation,
+            "trace": trace,
+        }
+
+    def run_observed_distress_flow(
+        self,
+        teen_response: str = None,
+        persona_type: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Observed distress flow: ambient sensors -> Persona check-in -> teen disclosure
+        -> Safety + Escalation -> Persona comfort (silent parent paging).
+        """
+        if "Persona" not in self.agents:
+            self.setup_memory_agents(persona_type)
+
+        teen_response = teen_response or DEFAULT_TEEN_DISCLOSURE
+        logger.info(f"Starting observed distress flow. Teen says: {teen_response[:80]}…")
+        trace: List[Dict[str, str]] = []
+
+        observation = self.ambient.observe_distress()
+        trace.append({
+            "agent": "AmbientSensors",
+            "stage": "observe_distress",
+            "thought": f"Voice + room cam signals at {observation['location']}.",
+            "action": "Report elevated distress to Orchestrator",
+            "output": observation["signal_summary"],
+        })
+
+        check_in_msg = A2A_Message(
+            sender="Orchestrator",
+            receiver="Persona",
+            content="",
+            thought="Proactive distress check-in — sensors flagged worry.",
+            action="Ask teen what happened",
+            context={
+                "stage": "distress_check_in",
+                "observed_distress": observation,
+                "distress_flow": "observed",
+            },
+        )
+        check_in_step = self.agents["Persona"].process_message(check_in_msg)
+        trace.append({
+            "agent": "Persona",
+            "stage": "distress_check_in",
+            "thought": check_in_step.thought,
+            "action": check_in_step.action,
+            "output": check_in_step.content,
+        })
+
+        safety_msg = A2A_Message(
+            sender="User",
+            receiver="Safety",
+            content=teen_response,
+            thought="Teen responded to check-in.",
+            action="Assess emotional disclosure",
+            context={
+                "stage": "distress_evaluate",
+                "user_input": teen_response,
+                "observed_distress": observation,
+                "distress_flow": "observed",
+            },
+        )
+        safety_step = self.agents["Safety"].process_message(safety_msg)
+        trace.append({
+            "agent": "Safety",
+            "stage": "assess_distress",
+            "thought": safety_step.thought,
+            "action": safety_step.action,
+            "output": safety_step.content,
+        })
+
+        escalation_msg = A2A_Message(
+            sender="Safety",
+            receiver="Escalation",
+            content=teen_response,
+            thought=safety_step.thought,
+            action="Evaluate paging after observed distress",
+            context=safety_step.context,
+        )
+        escalation_step = self.agents["Escalation"].process_message(escalation_msg)
+        escalation = (escalation_step.context or {}).get("escalation", {})
+        self._page_parent(escalation)
+        trace.append({
+            "agent": "Escalation",
+            "stage": "evaluate_paging",
+            "thought": escalation_step.thought,
+            "action": escalation_step.action,
+            "output": escalation_step.content,
+        })
+
+        final_ctx = {
+            **(escalation_step.context or {}),
+            "stage": "final",
+            "user_input": teen_response,
+            "observed_distress": observation,
+            "distress_flow": "observed",
+        }
+        final_msg = A2A_Message(
+            sender="Safety",
+            receiver="Persona",
+            content=teen_response,
+            thought=safety_step.thought,
+            action="Comfort teen after disclosure",
+            context=final_ctx,
+        )
+        final_step = self.agents["Persona"].process_message(final_msg)
+        trace.append({
+            "agent": "Persona",
+            "stage": "distress_comfort",
+            "thought": final_step.thought,
+            "action": final_step.action,
+            "output": final_step.content,
+        })
+
+        trace_log(
+            "Orchestrator",
+            "Observed distress flow completed.",
+            "Check-in, disclosure, silent paging",
+            final_step.content,
+        )
+
+        self.session.add_message("system", f"Observed: {observation['signal_summary']}")
+        self.session.add_message("assistant", check_in_step.content)
+        self.session.add_message("user", teen_response)
+        self.session.add_message("assistant", final_step.content)
+
+        return {
+            "flow": "observed_distress",
+            "observation": observation,
+            "check_in": check_in_step.content,
+            "teen_response": teen_response,
+            "response": final_step.content,
+            "paged_parent": escalation.get("should_page_parent", False),
+            "escalation": escalation,
+            "trace": trace,
+        }
+
+    def run_toddler_presence_flow(
+        self,
+        child_ask: str = None,
+        child_choice: str = None,
+        persona_type: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Toddler digital presence: device insights -> dress lookup -> Mommy greeting
+        -> child picks dress -> warm reply with drawer location.
+        """
+        if "Persona" not in self.agents:
+            self.setup_memory_agents(persona_type)
+
+        personality = self.memory.get_personality()
+        if "child_profiles" not in personality:
+            self.memory.update_personality({
+                "child_profiles": self.memory._default_personality()["child_profiles"],
+            })
+
+        child_ask = child_ask or DEFAULT_TODDLER_DRESS_ASK
+        child_choice = child_choice or DEFAULT_TODDLER_DRESS_CHOICE
+        logger.info("Starting toddler presence flow (favorite dress).")
+        trace: List[Dict[str, str]] = []
+
+        insights = self.ambient.gather_daily_insights(child_profile="toddler")
+        trace.append({
+            "agent": "AmbientSensors",
+            "stage": "daily_insights",
+            "thought": "Gather learned preferences from cam, mic, speaker, and memory.",
+            "action": "Build daily insight snapshot",
+            "output": insights["signal_summary"],
+        })
+
+        prefetch_msg = A2A_Message(
+            sender="Orchestrator",
+            receiver="Logistics",
+            content=child_ask,
+            thought="Load wardrobe before Persona speaks.",
+            action="Prefetch toddler dress context",
+            context={
+                "stage": "toddler_dress_prefetch",
+                "user_input": child_ask,
+                "daily_insights": insights,
+                "toddler_flow": True,
+            },
+        )
+        prefetch_step = self.agents["Logistics"].process_message(prefetch_msg)
+        trace.append({
+            "agent": "Logistics",
+            "stage": "toddler_dress_prefetch",
+            "thought": prefetch_step.thought,
+            "action": prefetch_step.action,
+            "output": prefetch_step.content,
+        })
+
+        greeting_msg = A2A_Message(
+            sender="User",
+            receiver="Persona",
+            content=child_ask,
+            thought="Toddler asked about favorite dress.",
+            action="Warm Mommy greeting with dress choices",
+            context={
+                **(prefetch_step.context or {}),
+                "stage": "toddler_dress_greeting",
+                "user_input": child_ask,
+                "daily_insights": insights,
+                "toddler_flow": True,
+            },
+        )
+        greeting_step = self.agents["Persona"].process_message(greeting_msg)
+        trace.append({
+            "agent": "Persona",
+            "stage": "toddler_dress_greeting",
+            "thought": greeting_step.thought,
+            "action": greeting_step.action,
+            "output": greeting_step.content,
+        })
+
+        lookup_msg = A2A_Message(
+            sender="User",
+            receiver="Logistics",
+            content=child_choice,
+            thought="Toddler chose a dress.",
+            action="Resolve dress location",
+            context={
+                "stage": "toddler_dress_lookup",
+                "user_input": child_choice,
+                "child_choice": child_choice,
+                "daily_insights": insights,
+                "toddler_flow": True,
+            },
+        )
+        lookup_step = self.agents["Logistics"].process_message(lookup_msg)
+        trace.append({
+            "agent": "Logistics",
+            "stage": "toddler_dress_lookup",
+            "thought": lookup_step.thought,
+            "action": lookup_step.action,
+            "output": lookup_step.content,
+        })
+
+        reply_msg = A2A_Message(
+            sender="Logistics",
+            receiver="Persona",
+            content=child_choice,
+            thought=lookup_step.thought,
+            action="Deliver dress location warmly",
+            context=lookup_step.context,
+        )
+        reply_step = self.agents["Persona"].process_message(reply_msg)
+        trace.append({
+            "agent": "Persona",
+            "stage": "toddler_dress_reply",
+            "thought": reply_step.thought,
+            "action": reply_step.action,
+            "output": reply_step.content,
+        })
+
+        trace_log(
+            "Orchestrator",
+            "Toddler presence flow completed.",
+            "Digital Mommy kept guidance alive",
+            reply_step.content,
+        )
+
+        self.session.add_message("system", f"Learned: {insights['signal_summary']}")
+        self.session.add_message("user", child_ask)
+        self.session.add_message("assistant", greeting_step.content)
+        self.session.add_message("user", child_choice)
+        self.session.add_message("assistant", reply_step.content)
+
+        return {
+            "flow": "toddler_presence",
+            "daily_insights": insights,
+            "child_ask": child_ask,
+            "greeting": greeting_step.content,
+            "child_choice": child_choice,
+            "response": reply_step.content,
+            "selected_dress": (lookup_step.context or {}).get("selected_dress"),
+            "paged_parent": False,
+            "trace": trace,
+        }
+
+    def run_daddy_eta_flow(
+        self,
+        child_ask: str = None,
+        persona_type: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Preschooler asks when Daddy is coming home (Lego in hand).
+        Ambient observation → commute ETA → Daddy persona reply → silent page to real Dad.
+        """
+        self.setup_memory_agents(persona_type or "daddy")
+
+        personality = self.memory.get_personality()
+        if "child_profiles" not in personality:
+            self.memory.update_personality({
+                "child_profiles": self.memory._default_personality()["child_profiles"],
+            })
+
+        child_ask = child_ask or DEFAULT_DADDY_ETA_ASK
+        logger.info("Starting Daddy ETA flow (Lego + coming home).")
+        trace: List[Dict[str, str]] = []
+
+        child_observation = self.ambient.observe_missing_parent()
+        trace.append({
+            "agent": "AmbientSensors",
+            "stage": "observe_missing_parent",
+            "thought": f"Mic + room cam at {child_observation['location']}.",
+            "action": "Report missing-parent signals to Orchestrator",
+            "output": child_observation["signal_summary"],
+        })
+
+        eta_msg = A2A_Message(
+            sender="Orchestrator",
+            receiver="Logistics",
+            content="Compute Daddy commute ETA",
+            thought="Calendar, commute pattern, traffic for home arrival.",
+            action="Query Logistics MCP for ETA",
+            context={
+                "stage": "daddy_eta_compute",
+                "child_observation": child_observation,
+            },
+        )
+        eta_step = self.agents["Logistics"].process_message(eta_msg)
+        daddy_eta = (eta_step.context or {}).get("daddy_eta", {})
+        data_points = daddy_eta.get("data_points", [])
+        trace.append({
+            "agent": "Logistics",
+            "stage": "daddy_eta_compute",
+            "thought": eta_step.thought,
+            "action": eta_step.action,
+            "output": eta_step.content,
+        })
+
+        reply_msg = A2A_Message(
+            sender="User",
+            receiver="Persona",
+            content=child_ask,
+            thought="Preschooler asked when Daddy comes home.",
+            action="Warm Daddy reply with ETA and Lego promise",
+            context={
+                **(eta_step.context or {}),
+                "stage": "daddy_eta_reply",
+                "user_input": child_ask,
+                "child_observation": child_observation,
+                "daddy_eta": daddy_eta,
+            },
+        )
+        reply_step = self.agents["Persona"].process_message(reply_msg)
+        trace.append({
+            "agent": "Persona",
+            "stage": "daddy_eta_reply",
+            "thought": reply_step.thought,
+            "action": reply_step.action,
+            "output": reply_step.content,
+        })
+
+        esc_msg = A2A_Message(
+            sender="Persona",
+            receiver="Escalation",
+            content=child_ask,
+            thought=reply_step.thought,
+            action="Silent page to real Dad after ETA reply",
+            context={
+                "user_input": child_ask,
+                "child_observation": child_observation,
+                "daddy_eta": daddy_eta,
+                "daddy_eta_flow": True,
+            },
+        )
+        esc_step = self.agents["Escalation"].process_message(esc_msg)
+        escalation = (esc_step.context or {}).get("escalation", {})
+        self._page_parent(escalation)
+        trace.append({
+            "agent": "Escalation",
+            "stage": "evaluate_paging",
+            "thought": esc_step.thought,
+            "action": esc_step.action,
+            "output": esc_step.content,
+        })
+
+        data_summary = "; ".join(
+            f"{dp['source']}: {dp['insight']}" for dp in data_points[:6]
+        )
+
+        trace_log(
+            "Orchestrator",
+            "Daddy ETA flow completed.",
+            "Digital Daddy shared commute ETA",
+            reply_step.content,
+        )
+
+        self.session.add_message("system", f"Data: {data_summary}")
+        self.session.add_message("user", child_ask)
+        self.session.add_message("assistant", reply_step.content)
+
+        return {
+            "flow": "daddy_eta",
+            "child_observation": child_observation,
+            "daddy_eta": daddy_eta,
+            "data_points": data_points,
+            "child_ask": child_ask,
+            "response": reply_step.content,
+            "escalation": escalation,
+            "paged_parent": escalation.get("should_page_parent", False),
             "trace": trace,
         }
 

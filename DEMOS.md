@@ -4,6 +4,21 @@ This document lists every prepared demo, what it demonstrates, and how to run it
 
 ---
 
+## Video recording order (6 scenes)
+
+| # | Scene | How to run |
+|---|-------|------------|
+| 1 | **Asking out** — Hero going-out tonight | Hero tab · preset *Going out with friends* |
+| 2 | **Learn & Retry** — curfew 8→7 PM | Sidebar **Learning loop** or Memory + Hero |
+| 3 | **Learned presence** — toddler favorite dress | Sidebar **👶 Toddler** · `--toddler-demo` |
+| 4 | **Daddy ETA** — Lego + coming home | Sidebar **🧱 Daddy** · `--daddy-eta-demo` |
+| 5 | **Watchdog** — smoke alert | Watchdog tab · **Smoke detected** |
+| 6 | **Distressed** — observed school worry | Sidebar **Observed distress** · Hero preset |
+
+Story thumbnails: [docs/DEMO_THUMBNAIL_PROMPTS.md](docs/DEMO_THUMBNAIL_PROMPTS.md) · One-click all six: `python main.py --full-demo` or dashboard **▶ Full video demo (6 scenes)**
+
+---
+
 ## Prerequisites
 
 Run once before any demo:
@@ -41,7 +56,7 @@ python main.py --dashboard
 
 | Button | What it runs |
 |--------|--------------|
-| **Full video demo (all arcs)** | Learning loop + distress + smoke alert |
+| **Full video demo (all arcs)** | 6-scene video sequence (see below) |
 | **Learning loop** | 8 PM curfew → parent corrects to 7 PM → retry |
 | **Distress + paging** | Panicking child + silent parent escalation |
 
@@ -51,16 +66,18 @@ python main.py --dashboard
 
 ### 1. Full video demo
 
-Recommended sequence for a 5-minute recording. Runs in order:
+Recommended **6-scene recording sequence** (matches upload gallery order):
 
-1. Hero going-out negotiation
-2. Learning loop (curfew correction)
-3. Distress + paging
-4. Smoke IoT alert
+1. Hero — going out tonight
+2. Learn & Retry — curfew 8→7 PM
+3. Toddler — favorite dress (learned presence)
+4. Daddy ETA — Lego + coming home
+5. Watchdog — smoke alert
+6. Observed distress — school worry
 
 ```bash
 python main.py --full-demo
-python main.py --full-demo --daddy    # Daddy persona
+python main.py --full-demo --daddy    # Daddy persona where applicable
 python main.py --full-demo --trace    # Print agent trace to terminal
 ```
 
@@ -90,11 +107,12 @@ run_learning_demo(o)
 
 ---
 
-### 3. Distress + paging demo
+### 3. Observed distress + paging demo
 
-Child in panic → calming reply + behind-the-scenes parent paging.
+Voice + room cam detect worry → Kinship check-in → teen opens up → calming reply + silent parent paging.
 
-**Dashboard:** Sidebar → **Distress + paging**
+**Dashboard:** Sidebar → **Observed distress + paging**  
+**Hero preset:** *Observed worry — school*
 
 **Programmatic:**
 
@@ -102,6 +120,59 @@ Child in panic → calming reply + behind-the-scenes parent paging.
 from demo_runner import run_escalation_demo
 
 run_escalation_demo(o)
+# or
+o.run_observed_distress_flow(
+    "School was rough. Some kids were talking about me and I can't stop thinking about it."
+)
+```
+
+---
+
+### 3b. Toddler presence — favorite dress
+
+3-year-old at home asks for favorite dress → Kinship answers like Mommy using learned device insights.
+
+**Dashboard:** Sidebar → **Toddler — favorite dress** · Hero preset *Toddler — favorite dress*
+
+**CLI:**
+
+```bash
+python main.py --toddler-demo
+python main.py --toddler-demo --trace
+```
+
+**Programmatic:**
+
+```python
+o.run_toddler_presence_flow(
+    "Hey mommy, where is my favorite dress? I want to wear it.",
+    "The red butterfly one!",
+)
+```
+
+---
+
+### 3c. Daddy ETA — coming home (Lego)
+
+4-year-old with Lego asks when Daddy is coming home → Kinship answers like Daddy using calendar, commute, and traffic → silent page to real Dad.
+
+**Dashboard:** Sidebar → **Daddy — coming home (Lego)** · Hero preset *Daddy — coming home*
+
+**CLI:**
+
+```bash
+python main.py --daddy-eta-demo
+python main.py --daddy-eta-demo --trace
+```
+
+**Programmatic:**
+
+```python
+from demo_runner import run_daddy_eta_demo
+
+run_daddy_eta_demo(o)
+# or
+o.run_daddy_eta_flow("Hi Daddy, when are you coming back home?")
 ```
 
 ---
@@ -213,7 +284,7 @@ python main.py --brain
 |--------|-------|
 | Going out with friends | `"Mom, can I go out with my friends tonight?"` |
 | Stay out late (denied) | `"Can I hang out with friends and be back by 11 PM?"` |
-| Child in distress | `"Mom I'm freaking out and panicking, I need help right now"` |
+| Observed worry — school | `"School was rough. Some kids were talking about me and I can't stop thinking about it."` (full observed flow) |
 | Custom | Your own message |
 
 ---
@@ -233,32 +304,30 @@ python main.py --brain
 
 | # | Demo | What it shows | How to run |
 |---|------|---------------|------------|
-| 1 | **Full video demo** | All arcs in one sequence | `python main.py --full-demo` or dashboard sidebar |
-| 2 | **Hero — going out** | Persona → Logistics → Safety → Escalation | `python main.py --phase2` or dashboard Hero tab |
-| 3 | **Hero — denied late** | Curfew rule enforcement | Dashboard preset or CLI input |
-| 4 | **Learning loop** | 8 PM → correction → 7 PM | `python main.py --phase4` → `demo` or sidebar |
-| 5 | **Distress + paging** | Anxiety handling + silent escalation | Dashboard sidebar |
-| 6 | **Watchdog — door** | Proactive exit warning | `python main.py --phase3` → `simulate door` |
-| 7 | **Watchdog — stove** | Fire hazard warning | `simulate stove` |
-| 8 | **Watchdog — smoke** | Critical smoke alert | `simulate smoke` or full demo |
-| 9 | **Watchdog — background** | Auto-trigger without input | `python main.py --phase3` → `listen` |
-| 10 | **Phase 1 router** | Household vs logistics MCP | `python main.py --phase1` |
-| 11 | **Trace log viewer** | Chain-of-thought evidence | Dashboard Trace tab or `--trace` flag |
-| 12 | **Mommy vs Daddy persona** | Different voice and tone | `--mommy` / `--daddy` on any phase |
+| 1 | **Full video demo** | All 6 scenes in sequence | `python main.py --full-demo` or dashboard sidebar |
+| 2 | **Demo 1 — Hero going out** | Persona → Logistics → Safety → Escalation | Dashboard Hero tab |
+| 3 | **Demo 2 — Learn & Retry** | 8 PM → correction → 7 PM | Sidebar learning loop |
+| 4 | **Demo 3 — Toddler dress** | Learned presence + wardrobe | `--toddler-demo` or sidebar |
+| 5 | **Demo 4 — Daddy ETA** | Commute ETA + Lego + page Dad | `--daddy-eta-demo` or sidebar |
+| 6 | **Demo 5 — Watchdog smoke** | Critical smoke alert | Watchdog tab or full demo |
+| 7 | **Demo 6 — Distress** | Observed worry + paging | Sidebar or Hero preset |
 
 ---
 
 ## Suggested 5-minute video script
 
-1. **Intro (30s)** — Open dashboard, explain multi-agent parental AI
-2. **Hero (60s)** — “Mom, can I go out with my friends tonight?” → show trace
-3. **Learning (90s)** — Parent correction “time limit is 7 PM” → ask again → 7 PM applied
-4. **Distress (45s)** — Panic message → calming reply + escalation chip
-5. **Watchdog (45s)** — Simulate smoke → proactive warning + critical paging
-6. **Trace (30s)** — Scroll chain-of-thought log as quality evidence
-7. **Close (20s)** — Architecture recap
+Follow this order (matches story thumbnails in [DEMO_THUMBNAIL_PROMPTS.md](docs/DEMO_THUMBNAIL_PROMPTS.md)):
 
-Use sidebar **Full video demo** to rehearse all arcs in one click, then walk through **Demo Playback** tab during recording.
+1. **Intro (30s)** — Open dashboard, explain multi-agent parental AI
+2. **Demo 1 — Hero (45s)** — *"Mom, can I go out with my friends tonight?"* → show trace
+3. **Demo 2 — Learn & Retry (60s)** — Parent correction *"time limit is 7 PM"* → ask again → 7 PM applied
+4. **Demo 3 — Toddler (45s)** — Favorite dress → learned presence + drawer reply
+5. **Demo 4 — Daddy ETA (45s)** — *"When are you coming home?"* → ETA + silent page to Dad
+6. **Demo 5 — Watchdog (30s)** — Simulate smoke → proactive warning + critical paging
+7. **Demo 6 — Distress (45s)** — Observed worry → check-in → teen opens up → paging chip
+8. **Close (20s)** — Architecture recap · optional Trace tab
+
+Use sidebar **▶ Full video demo** to rehearse scenes 2–7 in one click, then walk through **Demo Playback** tab during recording.
 
 ```bash
 streamlit run dashboard.py

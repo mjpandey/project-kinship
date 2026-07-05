@@ -35,7 +35,7 @@ Parenting is inherently multi-role. Kinship mirrors that separation:
 **Scenario:** *"Mom, can I go out with my friends tonight?"*
 
 1. Persona acknowledges the request warmly  
-2. Logistics checks mock MCP data — pasta dinner at 6:30 PM  
+2. Logistics checks mock MCP data — pasta dinner at 8:30 PM  
 3. Safety applies 8 PM curfew and conditions  
 4. Escalation pages the parent silently (never spoken to the child)  
 5. Persona delivers one natural reply: *"Yes, but home by 8 — eat with us first."*

@@ -42,9 +42,10 @@ The Streamlit dashboard is the primary interface for the 5-minute video demo.
 | **Demo Playback** | Step-through of one-click demo sequences |
 
 **Sidebar quick demos:**
-- **Full video demo** — learning loop + distress + smoke alert
+- **Full video demo** — 6-scene sequence: Hero → Learn & Retry → Toddler → Daddy ETA → Watchdog → Distress
 - **Learning loop** — curfew correction (8 PM → 7 PM)
-- **Distress + paging** — anxious child + behind-the-scenes escalation
+- **Observed distress + paging** — voice/cam worry → check-in → teen opens up → silent escalation
+- **Toddler — favorite dress** — learned device insights → Mommy dress conversation
 
 ---
 
@@ -142,21 +143,25 @@ Full writeup timeline: [docs/PROJECT_JOURNEY.md](docs/PROJECT_JOURNEY.md)
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Agents, flows, diagrams |
 | [docs/SUBMISSION_PITCH.md](docs/SUBMISSION_PITCH.md) | Capstone pitch & writeup |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Demo data scope & privacy notes |
+| [docs/DEMO_THUMBNAIL_PROMPTS.md](docs/DEMO_THUMBNAIL_PROMPTS.md) | Story-slide image prompts per demo |
 | [docs/PROJECT_JOURNEY.md](docs/PROJECT_JOURNEY.md) | Build phases |
 
 ---
 
 ## 5-minute video script (suggested)
 
-1. **Intro** (30s) — Open dashboard, explain multi-agent parental AI
-2. **Hero** (60s) — “Mom, can I go out with my friends tonight?” → show trace
-3. **Learning** (90s) — Parent correction “time limit is 7 PM” → ask again → 7 PM applied
-4. **Distress** (45s) — Panic message → calming reply + escalation chip
-5. **Watchdog** (45s) — Simulate smoke → proactive warning + critical paging
-6. **Trace** (30s) — Scroll chain-of-thought log as quality evidence
-7. **Close** (20s) — Architecture recap
+Follow the **6-scene order** in [docs/DEMO_THUMBNAIL_PROMPTS.md](docs/DEMO_THUMBNAIL_PROMPTS.md):
 
-Use sidebar **▶ Full video demo** to rehearse all arcs in one click.
+1. **Intro (30s)** — Open dashboard, explain multi-agent parental AI
+2. **Demo 1 — Hero (45s)** — Going out tonight → show trace
+3. **Demo 2 — Learn & Retry (60s)** — Curfew correction 8→7 PM
+4. **Demo 3 — Toddler (45s)** — Favorite dress · learned presence
+5. **Demo 4 — Daddy ETA (45s)** — Lego · commute ETA · page Dad
+6. **Demo 5 — Watchdog (30s)** — Smoke alert · proactive safety
+7. **Demo 6 — Distress (45s)** — Observed worry · check-in · paging
+8. **Close (20s)** — Architecture recap
+
+Use sidebar **▶ Full video demo** to rehearse demos 1–6 in one click.
 
 ---
 

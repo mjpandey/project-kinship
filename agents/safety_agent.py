@@ -11,6 +11,24 @@ DISTRESS_KEYWORDS = (
     "help me", "emergency", "hurt", "crying", "can't breathe",
 )
 
+# Subtle emotional disclosure (observed-distress demo — no explicit panic phrases).
+EMOTIONAL_WORRY_KEYWORDS = (
+    "school was rough",
+    "talking about me",
+    "can't stop thinking",
+    "kids were",
+    "embarrassed",
+    "worried",
+    "upset",
+    "rough day",
+    "hard day",
+    "feel bad",
+    "left out",
+    "bullied",
+    "anxious",
+    "stressed",
+)
+
 
 class SafetyAgent(Agent):
     DEFAULT_CURFEW_HOUR = 20  # 8 PM
@@ -60,6 +78,81 @@ class SafetyAgent(Agent):
         lower = text.lower()
         return any(kw in lower for kw in DISTRESS_KEYWORDS)
 
+    def _is_emotional_worry(self, text: str) -> bool:
+        lower = text.lower()
+        return any(kw in lower for kw in EMOTIONAL_WORRY_KEYWORDS)
+
+    def assess_distress(
+        self,
+        user_input: str,
+        observed_distress: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        """Evaluate observed sensors + teen disclosure — not explicit panic keywords."""
+        emotional = self._is_emotional_worry(user_input)
+        observed = bool(observed_distress)
+
+        if not emotional and not observed:
+            return {
+                "approved": False,
+                "request_type": "none",
+                "going_out_request": False,
+                "conditions": [],
+            }
+
+        source = "observed_and_disclosure"
+        if observed and not emotional:
+            source = "observed"
+        elif emotional and not observed:
+            source = "disclosure"
+
+        return {
+            "approved": False,
+            "request_type": "distress",
+            "distress_source": source,
+            "emotional_disclosure": emotional,
+            "observed_distress": observed,
+            "curfew": format_hour(self.curfew_hour),
+            "reason": None,
+            "going_out_request": False,
+            "conditions": [],
+        }
+
+    def _process_distress_assessment(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        user_input = ctx.get("user_input", message.content)
+        observed = ctx.get("observed_distress")
+
+        thought = (
+            "Assessing emotional distress from ambient observation and teen disclosure — "
+            "not a going-out request."
+        )
+        action = "Classify distress context for escalation"
+
+        safety_data = self.assess_distress(user_input, observed)
+
+        if safety_data.get("request_type") == "distress":
+            parts = []
+            if safety_data.get("observed_distress"):
+                parts.append("elevated distress observed (voice + room)")
+            if safety_data.get("emotional_disclosure"):
+                parts.append("teen disclosed emotional worry")
+            content = "Distress context: " + "; ".join(parts) + "."
+        else:
+            content = "No distress context detected."
+
+        context = {**ctx, "safety": safety_data}
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="Escalation",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context=context,
+        )
+
     def _is_going_out_request(self, text: str) -> bool:
         lower = text.lower()
         return any(kw in lower for kw in ("go out", "hang out", "friends", "leave", "outside", "meet up"))
@@ -98,7 +191,7 @@ class SafetyAgent(Agent):
         meal = logistics.get("current_meal", {})
         if logistics.get("dinner_conflict"):
             conditions.append(
-                f"Eat {meal.get('meal', 'dinner')} with the family at {meal.get('time', '6:30 PM')} before you leave."
+                f"Plan to be home for {meal.get('meal', 'dinner')} with the family at {meal.get('time', '8:30 PM')}."
             )
 
         return {
@@ -116,6 +209,9 @@ class SafetyAgent(Agent):
 
     def process_message(self, message: A2A_Message) -> A2A_Message:
         ctx = message.context or {}
+        if ctx.get("stage") == "distress_evaluate":
+            return self._process_distress_assessment(message)
+
         user_input = ctx.get("user_input", message.content)
         logistics = ctx.get("logistics", {})
 

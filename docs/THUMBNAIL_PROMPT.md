@@ -142,6 +142,8 @@ python scripts/generate_thumbnail.py --size 1792x1024 --output assets/thumbnail.
 
 Requires `OPENAI_API_KEY` in `.env`.
 
+**Per-demo story slides (deck):** [DEMO_THUMBNAIL_PROMPTS.md](./DEMO_THUMBNAIL_PROMPTS.md) — six-scene video order + one thumbnail per scenario with chit-chat overlay text.
+
 ---
 
 *Project Kinship · Capstone submission asset*

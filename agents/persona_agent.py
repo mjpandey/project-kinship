@@ -159,6 +159,191 @@ class PersonaAgent(Agent):
         lower = text.lower()
         return any(kw in lower for kw in DISTRESS_KEYWORDS)
 
+    def _preschool_nickname(self) -> str:
+        learned = self._learned_personality()
+        preschool = learned.get("child_profiles", {}).get("preschool", {})
+        nicknames = preschool.get("nicknames", [])
+        if nicknames:
+            return nicknames[0]
+        return "love"
+
+    def _compose_daddy_eta_reply(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        eta = ctx.get("daddy_eta", {})
+        nickname = self._preschool_nickname()
+
+        last_end = eta.get("last_meeting_end", "4:00 PM")
+        home_eta = eta.get("estimated_home_arrival", "5:00 PM")
+
+        thought = (
+            "Preschooler asked when Daddy comes home. Share warm ETA from calendar, "
+            "commute, and traffic — digital Dad presence, not a cold schedule bot."
+        )
+        action = "Answer like a real Dad with ETA and playful Lego promise"
+
+        content = (
+            f"Hi {nickname}, I'll be starting soon after my meetings finish by {last_end}. "
+            f"Should reach home by {home_eta}, okay? Save those Lego blocks for me."
+        )
+
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="User",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context={**ctx, "stage": "final", "final_response": content},
+        )
+
+    def _toddler_nickname(self) -> str:
+        learned = self._learned_personality()
+        toddler = learned.get("child_profiles", {}).get("toddler", {})
+        nicknames = toddler.get("nicknames", [])
+        if nicknames:
+            return nicknames[0]
+        return "baby"
+
+    def _compose_toddler_dress_greeting(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        baby = self._toddler_nickname()
+        title = self.profile["title"]
+        wardrobe = ctx.get("wardrobe", {})
+        dresses = wardrobe.get("dresses", [])
+
+        if len(dresses) >= 2:
+            option_a = dresses[0]["label"]
+            option_b = dresses[1]["label"]
+            choice_prompt = (
+                f"which one — the {option_a}, or the {option_b}?"
+            )
+        else:
+            choice_prompt = "which dress did you mean, sweetie?"
+
+        thought = (
+            f"Toddler asked about favorite dress. Respond as {title} with warm "
+            "digital presence — learned from cam, mic, and memory."
+        )
+        action = "Greet toddler and offer dress choices like a real parent"
+
+        content = (
+            f"Hi {baby}, how are you doing? … Okay, you want your favorite dress — "
+            f"{choice_prompt}"
+        )
+
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="User",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context={**ctx, "stage": "toddler_dress_greeting", "greeting": content},
+        )
+
+    def _compose_toddler_dress_reply(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        baby = self._toddler_nickname()
+        selected = ctx.get("selected_dress", {})
+        label = selected.get("label", "favorite dress")
+        location = selected.get("location", "your dresser")
+        status = selected.get("status", "clean")
+        notes = selected.get("notes", "")
+
+        thought = (
+            "Toddler picked a dress. Share location from household memory — "
+            "keep Mommy presence warm and specific."
+        )
+        action = "Tell toddler where the dress is, like a real parent"
+
+        if notes:
+            content = (
+                f"Oh that one — I think it's {status} and kept in the {location} "
+                f"for your {notes}."
+            )
+        else:
+            content = (
+                f"Oh that one — I think it's {status} and in the {location}, {baby}."
+            )
+
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="User",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context={**ctx, "stage": "final", "final_response": content},
+        )
+
+    def _compose_distress_check_in(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        nickname = self._nickname()
+        title = self.profile["title"]
+
+        thought = (
+            "Ambient sensors flagged elevated distress (voice + room). "
+            f"Initiate gentle {title} check-in — child did not ask first."
+        )
+        action = "Ask what happened and what's worrying them"
+
+        if self.persona_type == "mommy":
+            content = (
+                f"Hey {nickname}… I can tell something's on your mind. "
+                f"What happened today? What's worrying you?"
+            )
+        else:
+            content = (
+                f"Hey {nickname}… you seem like something's bothering you. "
+                f"What happened today? What's on your mind?"
+            )
+
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="User",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context={**ctx, "stage": "distress_check_in", "check_in": content},
+        )
+
+    def _compose_observed_distress_comfort(self, message: A2A_Message) -> A2A_Message:
+        ctx = message.context or {}
+        nickname = self._nickname()
+        opening = self._opening()
+
+        thought = (
+            "Teen shared emotional worry after observed distress. "
+            "Comfort and stay present — Escalation handles silent paging."
+        )
+        action = "Acknowledge disclosure and offer calm support"
+
+        content = (
+            f"{opening} — I'm really glad you told me. "
+            f"I'm right here, {nickname} — let's talk it through, okay?"
+        )
+
+        self.log_trace(thought, action, content)
+
+        return A2A_Message(
+            sender=self.name,
+            receiver="User",
+            content=content,
+            thought=thought,
+            action=action,
+            result=content,
+            context={**ctx, "stage": "final", "final_response": content},
+        )
+
     def _compose_distress_response(self, message: A2A_Message) -> A2A_Message:
         ctx = message.context or {}
         nickname = self._nickname()
@@ -190,6 +375,8 @@ class PersonaAgent(Agent):
         user_input = ctx.get("user_input", "")
 
         if safety.get("request_type") == "distress" or self._is_distress(user_input):
+            if ctx.get("observed_distress") or ctx.get("distress_flow") == "observed":
+                return self._compose_observed_distress_comfort(message)
             return self._compose_distress_response(message)
 
         logistics = ctx.get("logistics", {})
@@ -200,7 +387,7 @@ class PersonaAgent(Agent):
 
         meal = logistics.get("current_meal", {})
         meal_name = meal.get("meal", "dinner")
-        meal_time = meal.get("time", "6:30 PM")
+        meal_time = meal.get("time", "8:30 PM")
 
         approved = safety.get("approved", False)
         curfew = safety.get("curfew", "8:00 PM")
@@ -216,8 +403,8 @@ class PersonaAgent(Agent):
             content = (
                 f"{opening}, yeah — you can {desire}. "
                 f"Just be home by {curfew}, okay? "
-                f"We've got {meal_name} at {meal_time}, so eat with us first "
-                f"or make sure you're back in time. "
+                f"We've got {meal_name} at {meal_time}, so plan your evening "
+                f"so we can have dinner together. "
                 f"Stay with your friends, keep your phone on, and don't wander off somewhere new "
                 f"without checking in. {closing}"
             )
@@ -225,7 +412,7 @@ class PersonaAgent(Agent):
             reason = safety.get("reason", "it's not a good night for that")
             content = (
                 f"{opening}, I get why you're asking, {nickname}, but {reason}. "
-                f"How about your friends come over after {meal_name} around {meal_time}? "
+                f"How about your friends come over after our {meal_name} around {meal_time}? "
                 f"{closing}"
             )
 
@@ -308,6 +495,14 @@ class PersonaAgent(Agent):
 
         if stage == "alert":
             return self._compose_alert_response(message)
+        if stage == "distress_check_in":
+            return self._compose_distress_check_in(message)
+        if stage == "toddler_dress_greeting":
+            return self._compose_toddler_dress_greeting(message)
+        if stage == "toddler_dress_reply":
+            return self._compose_toddler_dress_reply(message)
+        if stage == "daddy_eta_reply":
+            return self._compose_daddy_eta_reply(message)
         if stage == "final":
             return self._compose_final_response(message)
         return self._analyze_mood(message)
