@@ -1,0 +1,12 @@
+python-dotenv
+pydantic
+openai
+langchain
+langchain-openai
+sqlalchemy
+scikit-learn
+numpy
+pandas
+requests
+chromadb
+streamlit
